@@ -1,4 +1,9 @@
-<!doctype html><html lang="sk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Mechanic Rush</title>
+<!doctype html>
+<html lang="sk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mechanic Rush</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;800&display=swap">
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
@@ -130,7 +135,7 @@ q('#pr')&&(q('#pr').textContent='Poradie '+(rk(L).findIndex(p=>p.me)+1)+' z '+L.
 if(hp()&&q('#hs'))q('#hs').remove();cn()}
 const cn=()=>{$('#cn').textContent=(room&&room.connected()?'🟢 online, hráči: ':'⚪ sólo, hráči: ')+PL().length+(CODEH?', kód '+CODEH:'')};setInterval(cn,1000);
 $('#ui').onclick=e=>{const id=e.target.closest('button')?.id;if(!id)return;sfx.tap();
-if(id==='jn'){let c;if(NET&&!room){c=($('#jc').value||'').trim().toUpperCase();if(c.length!==4){$('#er').textContent='Zadaj 4-znakový kód miestnosti.';return}}const el=$('#nm');if(el||!me.n)P({n:((el&&el.value.trim())||'Hráč'+(R()*90+10|0)).slice(0,14),s:0,g:-1,p:0,pr:0});if(c)net(c,false)}
+if(id==='jn'){let c;if(NET&&!room){c=($('#jc').value||'').trim().toUpperCase();if(c.length!==4){$('#er').textContent='Zadaj 4-znakový kód miestnosti.';return}}const el=$('#nm');const nameVal=((el&&el.value.trim())||'Hráč'+(R()*90+10|0)).slice(0,14);P({n:nameVal,s:0,g:-1,p:0,pr:0});if(c)net(c,false)}
 else if(id==='hs'){if(NET){if(!room){initMus();net(rc(),true)}}else if(!hp()){P({host:1,e:Date.now(),ph:'lobby',gi:-1});initMus()}}
 else if(id==='st')P({ph:'game',gi:0});
 else if(id==='nx')gi+1<G.length?P({ph:'game',gi:gi+1}):P({ph:'end'});
@@ -150,56 +155,29 @@ requestAnimationFrame(loop)}
 const rc=()=>Array.from({length:4},()=>'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[R()*31|0]).join('');
 function fillQR(){const u=location.href.split(/[?#]/)[0]+'?r='+CODEH;$('#lk').textContent=u;try{const q=qrcode(0,'M');q.addData(u);q.make();$('#qr').innerHTML=q.createSvgTag({cellSize:5,margin:0})}catch(e){}}
 function mkNet(code,host,fail,open){
-const subs=[],cs=[],all=new Map(),cl=[],PID='mrush-'+code;let conn=false,view=[],mine={},pend=null,tm=0,bt=0,nq=0,id=host?'h':'',hc=null;
-const pe=host?new Peer(PID):new Peer(),peers=()=>(host?[...all]:view).map(([k,v])=>({peer:k,presence:v,isMe:k===id,sameTab:k===id}));
+const subs=[],cs=[],all=new Map(),cl=[],PID='mrush-'+code;let conn=false,view=[],mine={},bt=0,nq=0,id=host?'h':'',hc=null;
+const peers=()=>(host?[...all]:view).map(([k,v])=>({peer:k,presence:v,isMe:k===id,sameTab:k===id}));
 const note=()=>{if(nq)return;nq=requestAnimationFrame(()=>{nq=0;subs.forEach(f=>f({peers:peers()}));cs.forEach(f=>f(conn))})};
-const bc=()=>{if(bt)return;bt=setTimeout(()=>{bt=0;const x=[...all];cl.forEach(c=>c.open&&c.send({t:'s',s:x}))},50)};
+const bc=()=>{if(bt)return;bt=setTimeout(()=>{bt=0;const x=[...all];cl.forEach(c=>c.open&&c.send({t:'s',s:x}))},30)};
+pe=host?new Peer(PID):new Peer();
 pe.on('error',e=>fail(e.type));
 if(host){
   pe.on('open',()=>{conn=true;all.set('h',{...mine,host:1});open()});
   pe.on('connection',c=>{
     cl.push(c);
-    c.on('open',()=>{
-      all.set(c.peer,{});
-      bc();
-      note();
-    });
-    c.on('data',m=>{
-      if(m.t==='p'){
-        all.set(c.peer,{...all.get(c.peer),...m.p});
-        bc();
-        note();
-      }
-    });
-    c.on('close',()=>{
-      const idx=cl.indexOf(c);
-      if(idx!==-1)cl.splice(idx,1);
-      all.delete(c.peer);
-      bc();
-      note();
-    });
+    c.on('open',()=>{all.set(c.peer,{});bc();note()});
+    c.on('data',m=>{if(m.t==='p'){all.set(c.peer,{...all.get(c.peer),...m.p});bc();note()}});
+    c.on('close',()=>{const i=cl.indexOf(c);if(i!==-1)cl.splice(i,1);all.delete(c.peer);bc();note()});
+  });
+}else{
+  pe.on('open',pid=>{
+    id=pid;
+    hc=pe.connect(PID,{reliable:true});
+    hc.on('open',()=>{conn=true;hc.send({t:'p',p:mine});note()});
+    hc.on('data',m=>{if(m.t==='s'){view=m.s;note()}});
+    hc.on('close',()=>{conn=false;view=[];note()});
   });
 }
-else pe.on('open',pid=>{
-  id=pid;
-  hc=pe.connect(PID,{reliable:true});
-  hc.on('open',()=>{
-    conn=true;
-    hc.send({t:'p',p:mine});
-    note();
-  });
-  hc.on('data',m=>{
-    if(m.t==='s'){
-      view=m.s;
-      note();
-    }
-  });
-  hc.on('close',()=>{
-    conn=false;
-    view=[];
-    note();
-  });
-});
 return{
   peers,
   connected:()=>conn,
@@ -209,13 +187,17 @@ return{
     Object.assign(mine,p);
     if(host){
       all.set('h',{...all.get('h'),...mine});
-      bc();
-      note();
+      bc();note();
     }else if(hc&&hc.open){
       hc.send({t:'p',p:mine});
     }
     return Promise.resolve();
   }
+};
 }
-}
+function net(code,host){room=mkNet(code,host,t=>{room=null;if(t==='unavailable-id'&&host)return net(rc(),true);me={};lastK='';mode='name';msg=t==='peer-unavailable'?'Miestnosť sa nenašla, skontroluj kód.':'Spojenie zlyhalo ('+t+').';render()},()=>{CODEH=code;P({host:1,e:Date.now(),ph:'lobby',gi:-1});sync()});room.onPeers(()=>sync());room.onConnection(cn);if(!host)room.presence({...me})}
+rs();render();requestAnimationFrame(loop);
+(async()=>{if(NET)return;try{room=await claude.use('room')}catch(e){room=null}
+if(room){room.onPeers(()=>sync(),()=>{room=null});room.onConnection(cn,()=>{});if(Object.keys(me).length)room.presence({...me}).catch(()=>{})}
+sync()})();
 </script></body></html>
